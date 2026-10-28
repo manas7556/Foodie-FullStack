@@ -1,0 +1,38 @@
+# Dependencies
+node_modules/
+**/node_modules/
+
+# Environment variables
+.env
+.env.*
+!.env.example
+
+# Build folders
+dist/
+build/
+.parcel-cache/
+coverage/
+
+# Logs
+*.log
+npm-debug.log*
+
+# Editor settings
+.vscode/
+.idea/
+
+# Operating system files
+.DS_Store
+Thumbs.db
+
+# Browser profiles
+swiggy-browser-profile/
+**/swiggy-browser-profile/
+
+# Temporary uploaded files
+backend/public/temp/*
+!backend/public/temp/.gitkeep
+
+# Personal files
+*.pem
+*.key
