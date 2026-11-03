@@ -1,10 +1,14 @@
 import { memo, useContext, useState } from "react";
-import { Link, NavLink, useNavigate } from "react-router-dom";
+import {
+  Link,
+  NavLink,
+  useNavigate,
+} from "react-router-dom";
 import { useSelector } from "react-redux";
 
 import useOnlineStatus from "../utils/useOnlineStatus";
 import UserContext from "../utils/UserContext";
-import API_BASE from "../api";
+import API_BASE from "../utils/api";
 
 const Header = () => {
   const {
@@ -44,34 +48,27 @@ const Header = () => {
     setLoggingOut(true);
     setLogoutError("");
 
+    const token = localStorage.getItem("accessToken");
+
     try {
-      const token =
-        localStorage.getItem("accessToken") ||
-        sessionStorage.getItem("accessToken");
+      if (token) {
+        const response = await fetch(
+          `${API_BASE}/users/logout`,
+          {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          }
+        );
 
-      if (!token) {
-        throw new Error("Session expired. Please log in again.");
-      }
+        if (!response.ok && response.status !== 401) {
+          const data = await response.json().catch(() => null);
 
-      const response = await fetch(
-        `${API_BASE}/users/logout`,
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-          credentials: "include",
-        }
-      );
-
-      if (!response.ok) {
-        if (response.status === 401) {
           throw new Error(
-            "Session expired. Please log in again."
+            data?.message || "Logout failed. Please try again."
           );
         }
-
-        throw new Error("Logout failed. Please try again.");
       }
 
       localStorage.removeItem("accessToken");
@@ -82,22 +79,9 @@ const Header = () => {
       setUserInfo(null);
       navigate("/");
     } catch (error) {
-      if (
-        error.message ===
-        "Session expired. Please log in again."
-      ) {
-        localStorage.removeItem("accessToken");
-        localStorage.removeItem("refreshToken");
-        sessionStorage.removeItem("accessToken");
-        sessionStorage.removeItem("refreshToken");
-
-        setUserInfo(null);
-        navigate("/login");
-      } else {
-        setLogoutError(
-          error.message || "Unable to log out."
-        );
-      }
+      setLogoutError(
+        error.message || "Unable to log out."
+      );
     } finally {
       setLoggingOut(false);
     }
@@ -111,7 +95,6 @@ const Header = () => {
     }`;
 
   const userName = loggedInUser?.fullName || "Guest";
-
   const userInitial = userName.charAt(0).toUpperCase();
 
   return (
@@ -130,7 +113,6 @@ const Header = () => {
             <span className="text-xl font-extrabold tracking-tight text-gray-900">
               Foodie<span className="text-orange-500">.</span>
             </span>
-
             <span className="text-[10px] font-medium tracking-wide text-gray-400">
               FRESH FOOD, FAST DELIVERY
             </span>
@@ -176,7 +158,6 @@ const Header = () => {
                   : "bg-red-500"
               }`}
             />
-
             {onlineStatus ? "Online" : "Offline"}
           </span>
 
@@ -187,7 +168,6 @@ const Header = () => {
             <span className="text-xl" aria-hidden="true">
               🛒
             </span>
-
             <span>Cart</span>
 
             {cartCount > 0 && (
@@ -328,7 +308,7 @@ const Header = () => {
                 type="button"
                 onClick={handleAuth}
                 disabled={authLoading || loggingOut}
-                className="rounded-lg bg-orange-500 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
+                className="rounded-lg bg-orange-500 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
               >
                 {loggingOut
                   ? "Logging out..."
@@ -348,7 +328,6 @@ const Header = () => {
                     : "bg-red-500"
                 }`}
               />
-
               {onlineStatus ? "Online" : "Offline"}
             </p>
           </div>

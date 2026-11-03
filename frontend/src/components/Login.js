@@ -5,7 +5,7 @@ import {
   useLocation,
 } from "react-router-dom";
 import UserContext from "../utils/UserContext";
-import API_BASE from "../api";
+import API_BASE from "../utils/api";
 
 const Login = () => {
   const navigate = useNavigate();

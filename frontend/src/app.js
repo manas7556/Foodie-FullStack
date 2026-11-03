@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from "react";
 import ReactDOM from "react-dom/client";
 
@@ -15,6 +14,8 @@ import OrderDetails from "./components/OrderDetails";
 import Signup from "./components/signup";
 
 import UserContext from "./utils/UserContext";
+import API_BASE from "./utils/api";
+
 import { Provider } from "react-redux";
 import appStore from "./utils/appStore";
 
@@ -33,17 +34,28 @@ const AppLayout = () => {
 
     const checkLoggedInUser = async () => {
       try {
+        const token = localStorage.getItem("accessToken");
+
+        if (!token) {
+          setUserInfo(null);
+          return;
+        }
+
         const response = await fetch(
-          "http://localhost:8000/api/v1/users/current-user",
+          `${API_BASE}/users/current-user`,
           {
             method: "GET",
             credentials: "include",
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
             signal: controller.signal,
           }
         );
 
         if (!response.ok) {
           if (!controller.signal.aborted) {
+            localStorage.removeItem("accessToken");
             setUserInfo(null);
           }
           return;
@@ -58,9 +70,9 @@ const AppLayout = () => {
         }
       } catch (error) {
         if (error.name !== "AbortError") {
-          console.warn(
+          console.error(
             "Unable to restore login session:",
-            error.message
+            error
           );
 
           if (!controller.signal.aborted) {
@@ -88,12 +100,10 @@ const AppLayout = () => {
       }}
     >
       <div className="app min-h-screen bg-white">
-        {/* Always render the Header */}
         <div className="sticky top-0 z-50 bg-white">
           <Header />
         </div>
 
-        {/* Render page content independently of authentication */}
         <main className="min-h-[70vh]">
           <Outlet />
         </main>
