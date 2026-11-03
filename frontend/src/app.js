@@ -2,7 +2,7 @@
 import React, { useEffect, useState } from "react";
 import ReactDOM from "react-dom/client";
 
-import Login from "./components/login";
+import Login from "./components/Login";
 import Header from "./components/Header";
 import Body from "./components/Body";
 import About from "./components/About";
