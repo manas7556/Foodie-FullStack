@@ -3,8 +3,7 @@ import { useEffect, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { Link, useParams } from "react-router-dom";
 import { addItem } from "../utils/cartSlice";
-
-const API_BASE = "http://localhost:8000/api/v1";
+import API_BASE from "../utils/api";
 
 const MenuShimmer = () => (
   <main

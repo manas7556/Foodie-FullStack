@@ -1,7 +1,7 @@
 import { useState, useContext, useEffect, useRef } from "react";
 import { useSelector, useDispatch } from "react-redux";
 import { useNavigate, useLocation } from "react-router-dom";
-
+import API_BASE from "../utils/api";
 import {
   clearCart,
   removeItem,
@@ -11,8 +11,6 @@ import {
 } from "../utils/cartSlice";
 
 import UserContext from "../utils/UserContext";
-
-const API_BASE = "http://localhost:8000/api/v1";
 
 const emptyAddress = {
   street: "",
