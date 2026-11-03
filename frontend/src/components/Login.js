@@ -1,4 +1,3 @@
-
 import { useState, useContext } from "react";
 import {
   Link,
@@ -6,6 +5,7 @@ import {
   useLocation,
 } from "react-router-dom";
 import UserContext from "../utils/UserContext";
+import API_BASE from "../api";
 
 const Login = () => {
   const navigate = useNavigate();
@@ -19,7 +19,6 @@ const Login = () => {
   const [showSignupSuggestion, setShowSignupSuggestion] =
     useState(false);
 
-  // Remember whether the customer came from checkout.
   const destination =
     location.state?.from === "/cart" ? "/cart" : "/";
 
@@ -34,7 +33,7 @@ const Login = () => {
 
     try {
       const response = await fetch(
-        "http://localhost:8000/api/v1/users/login",
+        `${API_BASE}/users/login`,
         {
           method: "POST",
           credentials: "include",
@@ -72,18 +71,33 @@ const Login = () => {
         );
       }
 
-      if (!data?.data?.user) {
+      const user = data?.data?.user;
+      const accessToken = data?.data?.accessToken;
+      const refreshToken = data?.data?.refreshToken;
+
+      if (!user) {
         throw new Error(
           "User information is missing from the login response."
         );
       }
 
-      // Store authenticated customer in context.
-      setUserInfo(data.data.user);
+      if (!accessToken) {
+        throw new Error(
+          "Access token is missing from the login response."
+        );
+      }
 
+      localStorage.setItem("accessToken", accessToken);
+
+      if (refreshToken) {
+        localStorage.setItem("refreshToken", refreshToken);
+      } else {
+        localStorage.removeItem("refreshToken");
+      }
+
+      setUserInfo(user);
       setPassword("");
 
-      // Return to checkout if the customer came from Cart.
       navigate(destination, {
         replace: true,
         state:

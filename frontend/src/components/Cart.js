@@ -9,7 +9,6 @@ import {
   MAX_QUANTITY_PER_ITEM,
   MAX_UNIQUE_ITEMS,
 } from "../utils/cartSlice";
-
 import UserContext from "../utils/UserContext";
 
 const emptyAddress = {
@@ -26,17 +25,13 @@ const addressLimits = {
   pincode: 6,
 };
 
-// ==========================================
-// VALIDATE MONGODB OBJECT ID
-// ==========================================
-
 const isMongoObjectId = (value) =>
   typeof value === "string" &&
   /^[a-f\d]{24}$/i.test(value);
 
-// ==========================================
-// LOAD RAZORPAY SCRIPT
-// ==========================================
+const getAccessToken = () =>
+  localStorage.getItem("accessToken") ||
+  sessionStorage.getItem("accessToken");
 
 const loadRazorpayScript = () => {
   return new Promise((resolve) => {
@@ -78,23 +73,37 @@ const loadRazorpayScript = () => {
   });
 };
 
-// ==========================================
-// API REQUEST HELPER
-// ==========================================
-
 const requestJSON = async (url, options = {}) => {
+  const token = getAccessToken();
+
+  if (!token) {
+    const error = new Error(
+      "Your session has expired. Please log in again."
+    );
+
+    error.status = 401;
+    throw error;
+  }
+
   const response = await fetch(url, {
-    credentials: "include",
     ...options,
+    credentials: "include",
+    headers: {
+      ...(options.headers || {}),
+      Authorization: `Bearer ${token}`,
+    },
   });
 
   const contentType =
     response.headers.get("content-type") || "";
 
   if (!contentType.includes("application/json")) {
-    throw new Error(
+    const error = new Error(
       `Unexpected server response (${response.status}). Check backend URL and routes.`
     );
+
+    error.status = response.status;
+    throw error;
   }
 
   const data = await response.json();
@@ -105,16 +114,11 @@ const requestJSON = async (url, options = {}) => {
     );
 
     error.status = response.status;
-
     throw error;
   }
 
   return data;
 };
-
-// ==========================================
-// CART COMPONENT
-// ==========================================
 
 const Cart = () => {
   const cartItems = useSelector(
@@ -152,20 +156,12 @@ const Cart = () => {
     };
   }, []);
 
-  // ==========================================
-  // CALCULATE CART TOTAL
-  // ==========================================
-
   const totalAmount = cartItems.reduce(
     (sum, item) =>
       sum +
       Number(item.price) * Number(item.quantity),
     0
   );
-
-  // ==========================================
-  // HANDLE ADDRESS CHANGE
-  // ==========================================
 
   const handleAddressChange = (event) => {
     const { name, value } = event.target;
@@ -182,10 +178,6 @@ const Cart = () => {
 
     setError("");
   };
-
-  // ==========================================
-  // VALIDATE DELIVERY ADDRESS
-  // ==========================================
 
   const validateAddress = () => {
     for (const [field, maxLength] of Object.entries(
@@ -216,10 +208,6 @@ const Cart = () => {
     return "";
   };
 
-  // ==========================================
-  // REDIRECT TO LOGIN
-  // ==========================================
-
   const redirectToLogin = () => {
     navigate("/login", {
       state: {
@@ -228,10 +216,6 @@ const Cart = () => {
       },
     });
   };
-
-  // ==========================================
-  // FINISH PAYMENT ATTEMPT
-  // ==========================================
 
   const finishPaymentAttempt = () => {
     paymentInProgressRef.current = false;
@@ -242,14 +226,15 @@ const Cart = () => {
     }
   };
 
-  // ==========================================
-  // HANDLE CHECKOUT ERROR
-  // ==========================================
-
   const handleCheckoutError = (err) => {
     if (!mountedRef.current) return;
 
     if (err.status === 401) {
+      localStorage.removeItem("accessToken");
+      localStorage.removeItem("refreshToken");
+      sessionStorage.removeItem("accessToken");
+      sessionStorage.removeItem("refreshToken");
+
       redirectToLogin();
       return;
     }
@@ -260,20 +245,14 @@ const Cart = () => {
     );
   };
 
-  // ==========================================
-  // CASH ON DELIVERY
-  // ==========================================
-
   const placeCODOrder = async (orderData) => {
     const data = await requestJSON(
       `${API_BASE}/orders`,
       {
         method: "POST",
-
         headers: {
           "Content-Type": "application/json",
         },
-
         body: JSON.stringify(orderData),
       }
     );
@@ -289,13 +268,7 @@ const Cart = () => {
     setAddress({ ...emptyAddress });
   };
 
-  // ==========================================
-  // ONLINE PAYMENT WITH RAZORPAY
-  // ==========================================
-
   const placeOnlineOrder = async (orderData) => {
-    // Load Razorpay checkout script
-
     const scriptLoaded = await loadRazorpayScript();
 
     if (!scriptLoaded || !window.Razorpay) {
@@ -304,17 +277,13 @@ const Cart = () => {
       );
     }
 
-    // Create Razorpay order through backend
-
     const response = await requestJSON(
       `${API_BASE}/payments/create-order`,
       {
         method: "POST",
-
         headers: {
           "Content-Type": "application/json",
         },
-
         body: JSON.stringify(orderData),
       }
     );
@@ -326,8 +295,6 @@ const Cart = () => {
       currency,
       keyId,
     } = response.data || {};
-
-    // Validate backend payment response
 
     if (
       !foodOrderId ||
@@ -342,26 +309,13 @@ const Cart = () => {
       );
     }
 
-    // ==========================================
-    // RAZORPAY CHECKOUT OPTIONS
-    // ==========================================
-
     const options = {
       key: keyId,
-
       amount,
-
       currency,
-
       name: "Food Delivery",
-
       description: "Food Order Payment",
-
       order_id: razorpayOrderId,
-
-      // ======================================
-      // PAYMENT SUCCESS HANDLER
-      // ======================================
 
       handler: async (paymentResponse) => {
         paymentInProgressRef.current = true;
@@ -375,26 +329,19 @@ const Cart = () => {
           setError("");
           setLoading(true);
 
-          // Verify payment on backend
-
           const verification = await requestJSON(
             `${API_BASE}/payments/verify`,
             {
               method: "POST",
-
               headers: {
                 "Content-Type": "application/json",
               },
-
               body: JSON.stringify({
                 foodOrderId,
-
                 razorpay_order_id:
                   paymentResponse.razorpay_order_id,
-
                 razorpay_payment_id:
                   paymentResponse.razorpay_payment_id,
-
                 razorpay_signature:
                   paymentResponse.razorpay_signature,
               }),
@@ -411,8 +358,6 @@ const Cart = () => {
               "Payment verification is still pending."
             );
           }
-
-          // Clear cart after successful verification
 
           dispatch(clearCart());
 
@@ -433,10 +378,6 @@ const Cart = () => {
           finishPaymentAttempt();
         }
       },
-
-      // ======================================
-      // HANDLE MODAL DISMISSAL
-      // ======================================
 
       modal: {
         ondismiss: () => {
@@ -463,10 +404,6 @@ const Cart = () => {
       },
     };
 
-    // ==========================================
-    // OPEN RAZORPAY CHECKOUT
-    // ==========================================
-
     const checkout = new window.Razorpay(options);
 
     checkoutRef.current = checkout;
@@ -485,31 +422,21 @@ const Cart = () => {
     checkout.open();
   };
 
-  // ==========================================
-  // MAIN CHECKOUT HANDLER
-  // ==========================================
-
   const handlePlaceOrder = async () => {
     if (busyRef.current) return;
 
     setError("");
     setSuccess("");
 
-    // Validate cart
-
     if (cartItems.length === 0) {
       setError("Your cart is empty.");
       return;
     }
 
-    // Check login
-
-    if (!loggedInUser) {
+    if (!loggedInUser || !getAccessToken()) {
       redirectToLogin();
       return;
     }
-
-    // Validate address
 
     const addressError = validateAddress();
 
@@ -518,41 +445,7 @@ const Cart = () => {
       return;
     }
 
-    // ======================================
-    // GET RESTAURANT ID
-    // ======================================
-
     const restaurantId = cartItems[0]?.restaurant;
-
-    // Debugging logs
-
-    console.log("========== CART DEBUG ==========");
-
-    console.log(
-      "Restaurant ID:",
-      restaurantId
-    );
-
-    console.log(
-      "Restaurant ID type:",
-      typeof restaurantId
-    );
-
-    console.log(
-      "Cart items:",
-      cartItems
-    );
-
-    console.log(
-      "Menu item IDs:",
-      cartItems.map((item) => item.id)
-    );
-
-    console.log("================================");
-
-    // ======================================
-    // VALIDATE RESTAURANT
-    // ======================================
 
     if (
       !restaurantId ||
@@ -568,18 +461,12 @@ const Cart = () => {
       return;
     }
 
-    // MongoDB ObjectId validation
-
     if (!isMongoObjectId(String(restaurantId))) {
       setError(
-        "Invalid restaurant ID. Your cart may contain a Swiggy API ID instead of a MongoDB restaurant ID."
+        "Invalid restaurant ID. Please add items from a valid restaurant."
       );
       return;
     }
-
-    // ======================================
-    // VALIDATE NUMBER OF ITEMS
-    // ======================================
 
     if (cartItems.length > MAX_UNIQUE_ITEMS) {
       setError(
@@ -587,10 +474,6 @@ const Cart = () => {
       );
       return;
     }
-
-    // ======================================
-    // VALIDATE MENU ITEM IDS
-    // ======================================
 
     if (
       cartItems.some(
@@ -603,10 +486,6 @@ const Cart = () => {
       );
       return;
     }
-
-    // ======================================
-    // VALIDATE QUANTITIES
-    // ======================================
 
     if (
       cartItems.some(
@@ -621,10 +500,6 @@ const Cart = () => {
       );
       return;
     }
-
-    // ======================================
-    // PREPARE ORDER DATA
-    // ======================================
 
     const orderData = {
       restaurantId: String(restaurantId),
@@ -642,45 +517,27 @@ const Cart = () => {
       },
     };
 
-    console.log(
-      "ORDER DATA:",
-      orderData
-    );
-
-    // ======================================
-    // START CHECKOUT
-    // ======================================
-
     busyRef.current = true;
-
     setLoading(true);
 
     try {
       if (paymentMethod === "COD") {
         await placeCODOrder(orderData);
-
         finishPaymentAttempt();
       } else {
         await placeOnlineOrder(orderData);
       }
     } catch (err) {
       handleCheckoutError(err);
-
       finishPaymentAttempt();
     }
   };
-
-  // ==========================================
-  // CART UI
-  // ==========================================
 
   return (
     <div className="mx-auto my-8 max-w-3xl p-4">
       <h1 className="mb-6 text-center text-3xl font-bold">
         Your Cart
       </h1>
-
-      {/* SUCCESS MESSAGE */}
 
       {success && (
         <div
@@ -690,8 +547,6 @@ const Cart = () => {
           {success}
         </div>
       )}
-
-      {/* ERROR MESSAGE */}
 
       {error && (
         <div
@@ -708,10 +563,6 @@ const Cart = () => {
         </p>
       ) : (
         <>
-          {/* ================================= */}
-          {/* CART ITEMS */}
-          {/* ================================= */}
-
           <div className="space-y-4">
             {cartItems.map((item) => (
               <div
@@ -735,8 +586,6 @@ const Cart = () => {
                     ).toFixed(2)}
                   </p>
                 </div>
-
-                {/* QUANTITY CONTROLS */}
 
                 <div className="flex items-center gap-3">
                   <button
@@ -775,15 +624,9 @@ const Cart = () => {
             ))}
           </div>
 
-          {/* ================================= */}
-          {/* CART TOTAL */}
-          {/* ================================= */}
-
           <div className="mt-6 text-right text-xl font-bold">
             Total: ₹{totalAmount.toFixed(2)}
           </div>
-
-          {/* CLEAR CART */}
 
           <button
             type="button"
@@ -795,10 +638,6 @@ const Cart = () => {
           >
             Clear Cart
           </button>
-
-          {/* ================================= */}
-          {/* DELIVERY ADDRESS */}
-          {/* ================================= */}
 
           <div className="mt-8 rounded-lg border p-5">
             <h2 className="mb-4 text-xl font-bold">
@@ -833,18 +672,12 @@ const Cart = () => {
               />
             ))}
 
-            {/* ================================= */}
-            {/* PAYMENT METHOD */}
-            {/* ================================= */}
-
             <div className="my-6">
               <h2 className="mb-3 text-lg font-bold">
                 Payment Method
               </h2>
 
               <div className="space-y-3">
-                {/* CASH ON DELIVERY */}
-
                 <label className="flex cursor-pointer items-center gap-3 rounded-lg border p-4">
                   <input
                     type="radio"
@@ -864,8 +697,6 @@ const Cart = () => {
                     💵 Cash on Delivery
                   </span>
                 </label>
-
-                {/* RAZORPAY */}
 
                 <label className="flex cursor-pointer items-center gap-3 rounded-lg border p-4">
                   <input
@@ -888,10 +719,6 @@ const Cart = () => {
                 </label>
               </div>
             </div>
-
-            {/* ================================= */}
-            {/* CHECKOUT BUTTON */}
-            {/* ================================= */}
 
             <button
               type="button"

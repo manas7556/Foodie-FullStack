@@ -1,14 +1,10 @@
-
 import { memo, useContext, useState } from "react";
-import {
-  Link,
-  NavLink,
-  useNavigate,
-} from "react-router-dom";
+import { Link, NavLink, useNavigate } from "react-router-dom";
 import { useSelector } from "react-redux";
 
 import useOnlineStatus from "../utils/useOnlineStatus";
 import UserContext from "../utils/UserContext";
+import API_BASE from "../api";
 
 const Header = () => {
   const {
@@ -49,24 +45,59 @@ const Header = () => {
     setLogoutError("");
 
     try {
+      const token =
+        localStorage.getItem("accessToken") ||
+        sessionStorage.getItem("accessToken");
+
+      if (!token) {
+        throw new Error("Session expired. Please log in again.");
+      }
+
       const response = await fetch(
-        "http://localhost:8000/api/v1/users/logout",
+        `${API_BASE}/users/logout`,
         {
           method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
           credentials: "include",
         }
       );
 
       if (!response.ok) {
+        if (response.status === 401) {
+          throw new Error(
+            "Session expired. Please log in again."
+          );
+        }
+
         throw new Error("Logout failed. Please try again.");
       }
+
+      localStorage.removeItem("accessToken");
+      localStorage.removeItem("refreshToken");
+      sessionStorage.removeItem("accessToken");
+      sessionStorage.removeItem("refreshToken");
 
       setUserInfo(null);
       navigate("/");
     } catch (error) {
-      setLogoutError(
-        error.message || "Unable to log out."
-      );
+      if (
+        error.message ===
+        "Session expired. Please log in again."
+      ) {
+        localStorage.removeItem("accessToken");
+        localStorage.removeItem("refreshToken");
+        sessionStorage.removeItem("accessToken");
+        sessionStorage.removeItem("refreshToken");
+
+        setUserInfo(null);
+        navigate("/login");
+      } else {
+        setLogoutError(
+          error.message || "Unable to log out."
+        );
+      }
     } finally {
       setLoggingOut(false);
     }
@@ -79,16 +110,13 @@ const Header = () => {
         : "text-gray-600 hover:bg-gray-50 hover:text-orange-600"
     }`;
 
-  const userName =
-    loggedInUser?.fullName || "Guest";
+  const userName = loggedInUser?.fullName || "Guest";
 
-  const userInitial =
-    userName.charAt(0).toUpperCase();
+  const userInitial = userName.charAt(0).toUpperCase();
 
   return (
     <header className="sticky top-0 z-50 w-full border-b border-gray-100 bg-white shadow-sm">
       <div className="mx-auto flex h-20 max-w-7xl items-center justify-between gap-4 px-4 sm:px-6">
-        {/* Logo */}
         <Link
           to="/"
           onClick={closeMobileMenu}
@@ -102,13 +130,13 @@ const Header = () => {
             <span className="text-xl font-extrabold tracking-tight text-gray-900">
               Foodie<span className="text-orange-500">.</span>
             </span>
+
             <span className="text-[10px] font-medium tracking-wide text-gray-400">
               FRESH FOOD, FAST DELIVERY
             </span>
           </div>
         </Link>
 
-        {/* Desktop navigation */}
         <nav
           className="hidden items-center gap-1 lg:flex"
           aria-label="Main navigation"
@@ -136,7 +164,6 @@ const Header = () => {
           )}
         </nav>
 
-        {/* Desktop actions */}
         <div className="hidden shrink-0 items-center gap-4 lg:flex">
           <span
             className="flex items-center gap-1.5 text-xs font-medium text-gray-500"
@@ -149,6 +176,7 @@ const Header = () => {
                   : "bg-red-500"
               }`}
             />
+
             {onlineStatus ? "Online" : "Offline"}
           </span>
 
@@ -159,6 +187,7 @@ const Header = () => {
             <span className="text-xl" aria-hidden="true">
               🛒
             </span>
+
             <span>Cart</span>
 
             {cartCount > 0 && (
@@ -199,7 +228,6 @@ const Header = () => {
           </button>
         </div>
 
-        {/* Mobile actions */}
         <div className="flex items-center gap-3 lg:hidden">
           <Link
             to="/cart"
@@ -235,7 +263,6 @@ const Header = () => {
         </div>
       </div>
 
-      {/* Mobile navigation */}
       {mobileMenuOpen && (
         <nav
           id="mobile-navigation"
@@ -321,6 +348,7 @@ const Header = () => {
                     : "bg-red-500"
                 }`}
               />
+
               {onlineStatus ? "Online" : "Offline"}
             </p>
           </div>
